@@ -10,3 +10,17 @@ CODE_1B = "ER2HI1B"
 CODE_2 = "ER2HI2"
 
 # Assumed variables
+# 120 - 130 offsets all still seem to work well
+ROWS_CLIPPED_BLANKING = 128
+
+# Visualization parameters
+COLOR_MAP = "gray_r"
+AMPLITUDE_VMIN = 110
+AMPLITUDE_VMAX = 215
+
+# tile parameters
+IMAGE_TILE_WIDTH = 336
+IMAGE_TILE_HEIGHT = IMAGE_TILE_WIDTH
+
+# approx. the mean reflectivity of the bed in the radargrams, used for normalization
+BED_REFLECTIVITY_REFERENCE = 50
