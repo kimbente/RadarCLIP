@@ -11,7 +11,7 @@ CODE_1B = "ER2HI1B"
 CODE_2 = "ER2HI2"
 
 # Matching tolerance for coordinate matching in degrees
-MATCHING_TOLERANCE = 1e-5
+MATCHING_TOLERANCE = 1e-2 # NOTE: max distance is not larger than 7 m
 
 # Assumed variables
 # 120 - 130 offsets all still seem to work well
