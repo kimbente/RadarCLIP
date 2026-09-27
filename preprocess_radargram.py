@@ -12,6 +12,7 @@ from scipy.spatial import cKDTree
 # CONFIGS
 from preprocess_radargrams_configs import PATH_2016_AN_UTIG_ER2HI1B, PATH_2016_AN_UTIG_ER2HI2, CODE_1B, CODE_2
 from preprocess_radargrams_configs import MATCHING_TOLERANCE, ROWS_CLIPPED_BLANKING, C, EPSILON_ICE
+from preprocess_radargrams_configs import X_SPACING
 # for vis mainly
 from preprocess_radargrams_configs import AMPLITUDE_VMIN, AMPLITUDE_VMAX, COLOR_MAP
 from preprocess_radargrams_configs import IMAGE_TILE_WIDTH, IMAGE_TILE_HEIGHT
@@ -250,7 +251,7 @@ for path_to_granule in list_of_nc_files_2016_UTIG_full_paths[0:]:
     amplitude = radargram_ds["amplitude_high_gain"].values.T 
 
     # Loop through x axis indices that result in a full tile
-    for x_idx in range(HALF_TILE_WIDTH, amplitude.shape[1] - HALF_TILE_WIDTH, 1):
+    for x_idx in range(HALF_TILE_WIDTH, amplitude.shape[1] - HALF_TILE_WIDTH, X_SPACING):
         print(f"Processing x_idx: {x_idx} in granule {radargram_ds.granule_id} (total columns: {amplitude.shape[1]})")
         x_center_index = x_idx
 

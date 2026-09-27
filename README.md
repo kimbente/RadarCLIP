@@ -17,8 +17,13 @@ Roberts, J.L., Blankenship, D.D., Greenbaum, J.S., Beem, L.H., Kempf, S.D., Youn
 - Is the "ice surface" the surface of the lower, compacted ice or the surface of the firn (surface pick coincides with strongest signal but not upper signal)
 - low gain/ high gain
 
-
 # Known issues
 2016: 156 radargrams
 ER2HI1B_2017023_ICP8_JKB2r_F07T08a_000 (no match at all)
 ER2HI1B_2017027_KNX_JKB2r_Y27a_001 (one missing)
+
+# Environment
+
+# Vocabulaty
+- subtrate
+- trace

@@ -26,6 +26,12 @@ AMPLITUDE_VMAX = 215
 IMAGE_TILE_WIDTH = 336
 IMAGE_TILE_HEIGHT = IMAGE_TILE_WIDTH
 
+# Spacing
+# every 10th pixel is chosen as the center of the tile
+# X_SPACING = 10
+# unique tiles (smallest dataset size)
+X_SPACING = 336
+
 # Radioglaciology parameters
 # speed of light in vacuum
 C = 2.998e8  # m/s
