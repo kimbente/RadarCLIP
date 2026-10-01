@@ -24,6 +24,31 @@ ER2HI1B_2017027_KNX_JKB2r_Y27a_001 (one missing)
 
 # Environment
 
-# Vocabulaty
+# Vocabulary
 - subtrate
 - trace
+
+# xOPR
+- some of the UTIG data does not contain bed picks (which I need)
+
+# Normalisation
+- Potentially only shift the data to be mean zero to keep relative differences in db inside the data, while decoupling from ice thickness/attenuation
+- 
+- 
+
+# HiCARS Earthdata
+IceBridge HiCARS 2 L1B Time-Tagged Echo Strength Profiles V001
+- Spatial filter
+
+https://gitlab.com/openpolarradar/opr/-/wikis/Processing-Notes
+
+# Contrast
+- deformation velocity
+- Calculate the driving stress
+- τ_d = ρ · g · H · tan(α)
+- u_surface = u_deformation + u_basal
+- https://agupubs.onlinelibrary.wiley.com/doi/full/10.1002/jgrf.20125 
+- https://agupubs.onlinelibrary.wiley.com/doi/full/10.1002/2014GL059976
+
+ML:
+- Rank-N-contrast
