@@ -99,3 +99,9 @@ DINOv2 (224 or 364)
 Calculate from radar tile:
 - average amplitude in "above boundry" layer
 - specularity?!
+
+# ToDo
+- add additional values to meta data:
+    - specularity
+    - roughness
+- Mask out "above bed" and "below bed" and for instance calculate metrics such as variability?!

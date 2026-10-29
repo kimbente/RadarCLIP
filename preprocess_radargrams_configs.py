@@ -29,7 +29,7 @@ IMAGE_TILE_HEIGHT = IMAGE_TILE_WIDTH
 # Spacing
 # every 10th pixel is chosen as the center of the tile
 # X_SPACING = 10
-# unique tiles (smallest dataset size)
+# unique tiles (smallest dataset size, no ovelap)
 X_SPACING = 336
 
 # Radioglaciology parameters
