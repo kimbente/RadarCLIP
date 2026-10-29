@@ -34,9 +34,13 @@ X_SPACING = 336
 
 # Radioglaciology parameters
 # speed of light in vacuum
-C = 2.998e8  # m/s
+C = 299_792_458  # m/s
 # relative permittivity (epsilon_r) of ice (~ 3.15 is standard for glacial ice)
+# documented constant used in HiCARS 1: https://nsidc.org/sites/default/files/ir1hi2-v001-userguide.pdf
 EPSILON_ICE = 3.15
 
 # approx. the mean reflectivity of the bed in the radargrams, used for normalization
 BED_REFLECTIVITY_REFERENCE = 50
+
+# see radargram_ds.attrs["TX-record_offset"] for EAGLE (HiCARS 2)
+TX_OFFSET_HiCARS1_microseconds = 2.550
