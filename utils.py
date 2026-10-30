@@ -282,76 +282,60 @@ HALF_TILE_HEIGHT = IMAGE_TILE_HEIGHT // 2
 
 def crop_tiles_extract_metadata(radargram_ds_l2, elevations_m, bed_idx):
     # Extract and transpose high gain amplitude 2D array 
-    amplitude = radargram_ds_l2["amplitude_high_gain"].values.T 
+    amplitude = radargram_ds_l2["amplitude_high_gain"].values.T
+    # Extract shape
+    n_rows, n_cols = amplitude.shape
 
-    # Loop through x axis indices that result in a full tile
-    for x_idx in range(HALF_TILE_WIDTH, amplitude.shape[1] - HALF_TILE_WIDTH, X_SPACING):
-        x_center_index = x_idx
+    # Get list of x_center_indices that will result in a full tile
+    # Note: Avoids looping
+    x_center_indices_candidates = np.arange(HALF_TILE_WIDTH, n_cols - HALF_TILE_WIDTH, X_SPACING)
+    # center y on the interface between bed and ice
+    # Note: this inlcludes NaN values, which will be filtered out 
+    y_center_indices_candidates = bed_idx[x_center_indices_candidates]
 
-        # Calculate min and max indices
-        x_min_index = x_center_index - HALF_TILE_WIDTH
-        x_max_index = x_center_index + HALF_TILE_WIDTH
+    # 1. Drop tiles that don't have a valid bed pick (NaN) for the center_index
+    valid_indices = ~ np.isnan(y_center_indices_candidates)
+    # Keep valid indices only
+    # Assure data type is int, as it will be used for indexing
+    x_center_indices = np.round(x_center_indices_candidates[valid_indices]).astype(int)
+    y_center_indices = np.round(y_center_indices_candidates[valid_indices]).astype(int)
 
-        # Retrieve Y CENTER INDEX from bed_idx for the current x_center_index
-        y_center_index = bed_idx[x_center_index].item()
+    # 2. Check that vertical range fits within the radargram, and drop tiles that don't fit
+    in_vertical_range = (y_center_indices - HALF_TILE_HEIGHT >= 0) & \
+                (y_center_indices + HALF_TILE_HEIGHT <= n_rows)
+    # overwrite is okay here
+    x_center_indices = x_center_indices[in_vertical_range]
+    y_center_indices = y_center_indices[in_vertical_range]
 
-        # Skip the current iteration if y_center_index is NaN (no valid bed pick)
-        if np.isnan(y_center_index):
-            # print(f"Skipping x_idx {x_idx}: no valid bed pick")
-            # Skips rest of loop
-            continue
+    # 3. Calculate the indices of the tiles
+    x_min_index, x_max_index = x_center_indices - HALF_TILE_WIDTH, x_center_indices + HALF_TILE_WIDTH -1
+    y_min_index, y_max_index = y_center_indices - HALF_TILE_HEIGHT, y_center_indices + HALF_TILE_HEIGHT -1
 
-        # NOTE: Needs to be an integer for indexing, but bed_idx can be float due to NaN handling
-        y_center_index = int(y_center_index)
+    if x_center_indices.size == 0:
+        return None, None
 
-        # Calculate min and max indices
-        y_min_index = y_center_index - HALF_TILE_HEIGHT 
-        y_max_index = y_center_index + HALF_TILE_HEIGHT
+    # 3D numpy array e.g. (9, 336, 336)
+    tiles = np.stack([amplitude[y - HALF_TILE_HEIGHT:y + HALF_TILE_HEIGHT, x - HALF_TILE_WIDTH:x + HALF_TILE_WIDTH] for x, y in zip(x_center_indices, y_center_indices)]).astype(np.float32, copy = False)
 
-        # NOTE: Check vertical range
-        if y_min_index < 0 or y_max_index >= amplitude.shape[0]:
-            print(f"Skipping x_idx {x_idx}: y indices out of bounds")
-            continue
+    # metadata
+    metadata = pd.DataFrame({
+            # NOTE: survey_id can be derived from granule_id, so we don't need to store it separately
+            # "survey_id": radargram_ds_l2.survey_id,
+            "granule_id": radargram_ds_l2.granule_id,
+            "x_center_idx": x_center_indices,
+            "y_center_idx": y_center_indices,
+            "tile_id": [f"{radargram_ds_l2.granule_id}_{x:04d}" for x in x_center_indices],
+            "X": radargram_ds_l2["l2_X"].values[x_center_indices], 
+            "Y": radargram_ds_l2["l2_Y"].values[x_center_indices],
+            "LON": radargram_ds_l2["lon"].values[x_center_indices], 
+            "LAT": radargram_ds_l2["lat"].values[x_center_indices],
+            "bed_elevation": radargram_ds_l2["l2_BED_ELEVATION"].values[x_center_indices],
+            "surface_elevation": radargram_ds_l2["l2_SURFACE_ELEVATION"].values[x_center_indices],
+            "ice_thickness": radargram_ds_l2["l2_THK"].values[x_center_indices],
+            "partial_bed_reflect": radargram_ds_l2["l2_PARTIAL_BED_REFLECT"].values[x_center_indices],
+            "srf_reflect": radargram_ds_l2["l2_SRF_REFLECT"].values[x_center_indices],
+            "tile_along_track_span_m": np.hypot(radargram_ds_l2["l2_X"].values[x_max_index] - radargram_ds_l2["l2_X"].values[x_min_index], radargram_ds_l2["l2_Y"].values[x_max_index] - radargram_ds_l2["l2_Y"].values[x_min_index]),
+            "tile_vertical_span_m": elevations_m[y_max_index, x_center_indices] - elevations_m[y_min_index, x_center_indices], 
+            "bed_std_m": [np.nanstd(radargram_ds_l2["l2_BED_ELEVATION"].values[x_min : x_max]) for x_min, x_max in zip(x_min_index, x_max_index)],})
 
-        # Calculate some metrics
-        # NOTE: Index by x only (along track)
-        x_min_ps, x_max_ps, y_min_ps, y_max_ps = radargram_ds_l2.l2_X[x_min_index, ].values, radargram_ds_l2.l2_X[x_max_index, ].values, radargram_ds_l2.l2_Y[x_min_index, ].values, radargram_ds_l2.l2_Y[x_max_index, ].values
-        along_track_span = np.sqrt((x_max_ps - x_min_ps)**2 + (y_max_ps - y_min_ps)**2)
-        # along track span in meters. e.g. 336 pixels * 21 m/pixel = 7 km
-        print(f"along_track_span in meters: {along_track_span:.1f}")
-
-        # Indicate vertical span of the tile for the (x axis) center of the tile
-        vertical_span = elevations_m[y_min_index, x_center_index] - elevations_m[y_max_index, x_center_index]
-        print(f"vertical_span in meters: {vertical_span:.1f}")
-
-        # Extract the tile from the amplitude array
-        tile = amplitude[y_min_index : y_max_index, x_min_index : x_max_index]
-        print("tile shape:", tile.shape)
-
-        # Convert the tile to a PyTorch tensor and add a batch dimension (1, 1, H, W)
-        tile_torch = torch.from_numpy(tile).unsqueeze(0).unsqueeze(0).to(torch.float64)  # (1, 1, 256, 256)
-        tiles_tensor = torch.cat([tiles_tensor, tile_torch], dim = 0)
-        # NOTE: could add low_amplitude tiles to a separate tensor, but for now we will just skip them
-
-    return tiles_tensor_per_granule, tiles_metadata_per_granule
-
-        tiles_metadata.loc[len(tiles_metadata)] = {
-            "survey_id": radargram_survey_id_L2,
-            "granule_id": radargram_ds.granule_id,
-            "x_idx": x_idx,
-            "X": radargram_ds.l2_X[x_center_index].item(),
-            "Y": radargram_ds.l2_Y[x_center_index].item(),
-            "LON": radargram_ds.lon.values[x_center_index],
-            "LAT": radargram_ds.lat.values[x_center_index],
-            "bed_elevation": radargram_ds.l2_BED_ELEVATION.values[x_center_index],
-            "surface_elevation": radargram_ds.l2_SURFACE_ELEVATION.values[x_center_index],
-            "ice_thickness": radargram_ds.l2_THK.values[x_center_index],
-            "partial_bed_reflect": radargram_ds.l2_PARTIAL_BED_REFLECT.values[x_center_index],
-            "srf_reflect": radargram_ds.l2_SRF_REFLECT.values[x_center_index],
-            "tile_along_track_span_m": along_track_span,
-            "tile_vertical_span_m": vertical_span,
-        }
-    
-
-
-  
+    return tiles, metadata

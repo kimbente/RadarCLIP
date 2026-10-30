@@ -105,3 +105,5 @@ Calculate from radar tile:
     - specularity
     - roughness
 - Mask out "above bed" and "below bed" and for instance calculate metrics such as variability?!
+- Understand radardata in line km
+- Consider data quality issues
