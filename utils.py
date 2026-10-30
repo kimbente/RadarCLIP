@@ -6,9 +6,13 @@ import pyproj
 import os
 from scipy.spatial import cKDTree
 
-from preprocess_radargrams_configs import MATCHING_TOLERANCE, TX_OFFSET_HiCARS1_microseconds
+from preprocess_radargrams_configs import MATCHING_TOLERANCE
 from preprocess_radargrams_configs import C, EPSILON_ICE
 from preprocess_radargrams_configs import IMAGE_TILE_WIDTH, IMAGE_TILE_HEIGHT, X_SPACING
+
+###############
+### LOADING ###
+###############
 
 def load_L1B_radargram(path_to_granule):
     """
@@ -22,26 +26,30 @@ def load_L1B_radargram(path_to_granule):
     """
     # 1. L1B data: Open nc file as xarray dataset
     radargram_ds = xr.open_dataset(path_to_granule)
-    print("------------------------------")
     print("Now processing Granule ID:", radargram_ds.granule_id)
     print("L1B radargram shape (rows, columns):", radargram_ds["amplitude_high_gain"].T.shape)
 
     # Sanity check
-    columns_without_lonlat = (radargram_ds["lon"].isnull() | radargram_ds["lat"].isnull()).sum().item()
-    print(f"L1B radargram number of columns missing LON, LAT or BOTH: {columns_without_lonlat}")
+    columns_without_lonlat = (radargram_ds["lon"].isnull() | radargram_ds["lat"].isnull()).values
+    number_of_columns_without_lonlat = int(columns_without_lonlat.sum())
+    print(f"L1B radargram number of columns missing LON, LAT or BOTH: {number_of_columns_without_lonlat}")
 
-    # If there are any columns without lon/lat, crop the granule or skip this granule
-    if columns_without_lonlat > 0:
-        # NOTE: Often it is just the last 11/12 columns missing so we can "save" the granule
-        radargram_ds_cropped = radargram_ds.isel({"time": slice(0, - columns_without_lonlat)})
-        columns_without_lonlat_after_crop = (radargram_ds_cropped["lon"].isnull() | radargram_ds_cropped["lat"].isnull()).sum().item()
-        if columns_without_lonlat_after_crop == 0:
-            radargram_ds = radargram_ds_cropped
-            print(f"INFO: Cropped {columns_without_lonlat} columns from the end of the radargram to remove missing LON, LAT values")
+    if number_of_columns_without_lonlat > 0:
+        # crop only if ALL the bad columns are in a trailing block
+        last_valid_column = np.flatnonzero(~ columns_without_lonlat).max()
+        if columns_without_lonlat[last_valid_column + 1:].all() and columns_without_lonlat[:last_valid_column + 1].sum() == 0:
+            radargram_ds = radargram_ds.isel(time = slice(0, last_valid_column + 1))
+            print(f"INFO: Cropped {number_of_columns_without_lonlat} trailing columns with missing LON/LAT")
         else:
-            print(f"WARNING: Skipping granule {radargram_ds.granule_id} due to missing lon/lat values")
-
+            print(f"WARNING: Skipping granule {radargram_ds.granule_id}: "
+                  f"missing lon/lat in the middle of the granule")
+            return None
+        
     return radargram_ds
+
+############
+### PATH ###
+############
 
 def get_l2_path_from_l1b(granule_id, path_to_l2_folder):
     """
@@ -64,6 +72,10 @@ def get_l2_path_from_l1b(granule_id, path_to_l2_folder):
     # print("L2 file path:", PATH_L2)
     
     return path_to_l2
+
+###############
+### LOADING ###
+###############
 
 def load_l2_ice_thickness(path_to_l2_file):
     """
@@ -113,6 +125,10 @@ def load_l2_ice_thickness(path_to_l2_file):
 
     return l2_df
 
+###############
+### PROJECT ###
+###############
+
 lonlat_to_polarstereo = pyproj.Transformer.from_crs(crs_from = pyproj.CRS("epsg:4326"),
                                                     crs_to = pyproj.CRS("epsg:3031"),
                                                     always_xy = True) # xy order convention
@@ -131,6 +147,10 @@ def add_polarstereo_coordinates(l2_df):
     l2_df["X"], l2_df["Y"] = lonlat_to_polarstereo.transform(l2_df["LON"].values, l2_df["LAT"].values)
     
     return l2_df
+
+###############
+### MERGING ###
+###############
 
 def merge_radargram_and_l1b(radargram_ds, l2_df):
 
@@ -182,13 +202,16 @@ def merge_radargram_and_l1b(radargram_ds, l2_df):
 
     return radargram_ds
 
-########
+###############
+### CONVERT ###
+###############
+
 # Calculate refractive index of ice
 n = np.sqrt(EPSILON_ICE)
 # Calculate speed of light in ice
 v_ice = C / n 
 
-def convert_radargram_to_elevations(radargram_ds_l2):
+def convert_radargram_to_elevations(radargram_ds_l2, TX_OFFSET_microseconds):
     """
     Convert radargram data to elevations using the L2 bed and surface elevations.
     
@@ -201,7 +224,7 @@ def convert_radargram_to_elevations(radargram_ds_l2):
     ### Convert fasttime to TWTT ###
     # Make a new coordinate variable for two-way travel time (TWTT) in microseconds, adjusted for the TX-record offset
     radargram_ds_l2 = radargram_ds_l2.assign_coords(
-        twtt_us = ("fasttime_dim", radargram_ds_l2.fasttime.values - TX_OFFSET_HiCARS1_microseconds)
+        twtt_us = ("fasttime_dim", radargram_ds_l2.fasttime.values - TX_OFFSET_microseconds)
     )
 
     radargram_ds_l2["twtt_us"].attrs["units"] = "microseconds"
@@ -242,6 +265,10 @@ def convert_radargram_to_elevations(radargram_ds_l2):
 
     return elevation_m
 
+################
+### PICK BED ###
+################
+
 def generate_bed_idx_and_mask(elevations_m, radargram_ds_l2):
     """
     Generate a bed mask based on the elevations and L2 bed elevation data.
@@ -276,7 +303,13 @@ def generate_bed_idx_and_mask(elevations_m, radargram_ds_l2):
 
     return bed_idx, bed_mask
 
+
+##################
+### CROP TILES ###
+##################
+
 # Define before loop to avoid re-creating the transformer for each granule
+# e.g. 336 / 2 = 168, so the center of the tile is at index 168, and the tile extends from 0 to 335 (inclusive)
 HALF_TILE_WIDTH = IMAGE_TILE_WIDTH // 2
 HALF_TILE_HEIGHT = IMAGE_TILE_HEIGHT // 2
 
@@ -322,6 +355,8 @@ def crop_tiles_extract_metadata(radargram_ds_l2, elevations_m, bed_idx):
             # NOTE: survey_id can be derived from granule_id, so we don't need to store it separately
             # "survey_id": radargram_ds_l2.survey_id,
             "granule_id": radargram_ds_l2.granule_id,
+            # extract flight to exclude data with quality issues. 
+            "flight": radargram_ds_l2.attrs['flight'],
             "x_center_idx": x_center_indices,
             "y_center_idx": y_center_indices,
             "tile_id": [f"{radargram_ds_l2.granule_id}_{x:04d}" for x in x_center_indices],
@@ -336,6 +371,10 @@ def crop_tiles_extract_metadata(radargram_ds_l2, elevations_m, bed_idx):
             "srf_reflect": radargram_ds_l2["l2_SRF_REFLECT"].values[x_center_indices],
             "tile_along_track_span_m": np.hypot(radargram_ds_l2["l2_X"].values[x_max_index] - radargram_ds_l2["l2_X"].values[x_min_index], radargram_ds_l2["l2_Y"].values[x_max_index] - radargram_ds_l2["l2_Y"].values[x_min_index]),
             "tile_vertical_span_m": elevations_m[y_max_index, x_center_indices] - elevations_m[y_min_index, x_center_indices], 
-            "bed_std_m": [np.nanstd(radargram_ds_l2["l2_BED_ELEVATION"].values[x_min : x_max]) for x_min, x_max in zip(x_min_index, x_max_index)],})
+            # need +1 because the range is inclusive of both ends
+            "bed_std_m": [np.nanstd(radargram_ds_l2["l2_BED_ELEVATION"].values[x_min : x_max + 1]) for x_min, x_max in zip(x_min_index, x_max_index)],})
+
+    # print to mark end of processing for this granule
+    print("------------------------------")
 
     return tiles, metadata

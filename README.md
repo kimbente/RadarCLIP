@@ -107,3 +107,4 @@ Calculate from radar tile:
 - Mask out "above bed" and "below bed" and for instance calculate metrics such as variability?!
 - Understand radardata in line km
 - Consider data quality issues
+- Check if skipped files exist and we just didn't download
