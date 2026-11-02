@@ -12,3 +12,13 @@ path_to_IR1HI1B = "/Users/kim.bente/DATA/HiCARS/IR1HI1B"
 # define paths to where all corresponding ice thickness files will be kept
 path_to_IR1HI2_ice_thickness = "/Users/kim.bente/DATA/HiCARS/IR1HI2_ice_thickness"
 path_to_IR2HI2_ice_thickness = "/Users/kim.bente/DATA/HiCARS/IR2HI2_ice_thickness"
+
+# Target paths
+path_to_tiles_metadata_EAGLE_2016 = "data/tiles_metadata_EAGLE_2016_HiCARS2.csv"
+path_to_tiles_tensor_EAGLE_2016 = "data/tiles_tensor_EAGLE_2016_HiCARS2.pt"
+
+path_to_tiles_metadata_IceBridge_HiCARS1 = "data/tiles_metadata_IceBridge_HiCARS1.csv"
+path_to_tiles_tensor_IceBridge_HiCARS1 = "data/tiles_tensor_IceBridge_HiCARS1.pt"
+
+path_to_tiles_metadata_IceBridge_HiCARS2 = "data/tiles_metadata_IceBridge_HiCARS2.csv"
+path_to_tiles_tensor_IceBridge_HiCARS2 = "data/tiles_tensor_IceBridge_HiCARS2.pt"

@@ -84,6 +84,7 @@ ML:
 - Assign IDs to tiles? 
 - Spacing? 
 - What additional data do I need? (Specularity)
+- Use ratio of bed (peak power) to top
 
 # Encoding: 
 

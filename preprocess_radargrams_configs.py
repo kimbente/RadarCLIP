@@ -23,6 +23,9 @@ IMAGE_TILE_HEIGHT = IMAGE_TILE_WIDTH
 # NOTE: Choose smaller numbers, e.g. 20 to select every 20th pixel in x direction as the center pixel.
 X_SPACING = IMAGE_TILE_WIDTH
 
+PEAK_BED_ECHO_WINDOW_HALF_HEIGHT = 10
+PEAK_BED_ECHO_WINDOW_HALF_WIDTH = 5
+
 # Radioglaciology parameters
 # speed of light in vacuum
 C = 299_792_458  # m/s

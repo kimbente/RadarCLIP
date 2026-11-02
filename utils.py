@@ -9,6 +9,7 @@ from scipy.spatial import cKDTree
 from preprocess_radargrams_configs import MATCHING_TOLERANCE
 from preprocess_radargrams_configs import C, EPSILON_ICE
 from preprocess_radargrams_configs import IMAGE_TILE_WIDTH, IMAGE_TILE_HEIGHT, X_SPACING
+from preprocess_radargrams_configs import PEAK_BED_ECHO_WINDOW_HALF_HEIGHT, PEAK_BED_ECHO_WINDOW_HALF_WIDTH
 
 ###############
 ### LOADING ###
@@ -32,7 +33,8 @@ def load_L1B_radargram(path_to_granule):
     # Sanity check
     columns_without_lonlat = (radargram_ds["lon"].isnull() | radargram_ds["lat"].isnull()).values
     number_of_columns_without_lonlat = int(columns_without_lonlat.sum())
-    print(f"L1B radargram number of columns missing LON, LAT or BOTH: {number_of_columns_without_lonlat}")
+    if number_of_columns_without_lonlat > 0:
+        print(f"INFO: L1B radargram has {number_of_columns_without_lonlat} columns with missing LON/LAT")
 
     if number_of_columns_without_lonlat > 0:
         # crop only if ALL the bad columns are in a trailing block
@@ -41,8 +43,7 @@ def load_L1B_radargram(path_to_granule):
             radargram_ds = radargram_ds.isel(time = slice(0, last_valid_column + 1))
             print(f"INFO: Cropped {number_of_columns_without_lonlat} trailing columns with missing LON/LAT")
         else:
-            print(f"WARNING: Skipping granule {radargram_ds.granule_id}: "
-                  f"missing lon/lat in the middle of the granule")
+            print(f"INFO: Skipping granule {radargram_ds.granule_id} due to missing LON/LAT in the middle of the granule")
             return None
         
     return radargram_ds
@@ -116,11 +117,12 @@ def load_l2_ice_thickness(path_to_l2_file):
     # Drop them so the the lookup will just not return a match for those rows, instead of returning a match with NaN values.
     l2_df = l2_df_raw.dropna(subset = ["LON", "LAT"]) 
     # print(f"L2 dataframe shape after dropping rows with NaN in LON or LAT: {l2_df.shape[0]}")
-    print(f"L2 number of columns missing LON, LAT or BOTH: {l2_df_raw.shape[0] - l2_df.shape[0]}")
+    if l2_df.shape[0] < l2_df_raw.shape[0]:
+        print(f"INFO: L2 dataframe has {l2_df_raw.shape[0] - l2_df.shape[0]} rows with missing LON/LAT")
 
     # if the L2 dataframe has no valid rows after dropping NaN values, skip this granule
     if l2_df.shape[0] == 0:
-        print(f"WARNING: L2 dataframe {path_to_l2_file} has no valid rows after dropping NaN in LON or LAT")
+        print(f"INFO: L2 dataframe {path_to_l2_file} has no valid rows after dropping NaN in LON/LAT")
         return None
 
     return l2_df
@@ -194,8 +196,13 @@ def merge_radargram_and_l1b(radargram_ds, l2_df):
 
     # Add the selected columns from the matched L2 subset to the radargram xarray dataset
     for col in selected_cols:
-        # Add along time dimension in xarray
-        radargram_ds[f"l2_{col}"] = ("time", matched_l2_subset[col].values)
+        if col in matched_l2_subset.columns:
+            values = matched_l2_subset[col].values
+        else:
+            # NOTE: If the column is missing in the L2 data, fill with NaN and print a warning (e.g. SRF_REFLECT mising from HiCARS1)
+            print(f"INFO: {radargram_ds.granule_id} has no L2 column '{col}', filling with NaN")
+            values = np.full(len(matched_l2_subset), np.nan)
+        radargram_ds[f"l2_{col}"] = ("time", values)
 
     # free-up memory
     del tree
@@ -325,30 +332,51 @@ def crop_tiles_extract_metadata(radargram_ds_l2, elevations_m, bed_idx):
     # center y on the interface between bed and ice
     # Note: this inlcludes NaN values, which will be filtered out 
     y_center_indices_candidates = bed_idx[x_center_indices_candidates]
+    n_candidates = x_center_indices_candidates.size
 
-    # 1. Drop tiles that don't have a valid bed pick (NaN) for the center_index
-    valid_indices = ~ np.isnan(y_center_indices_candidates)
-    # Keep valid indices only
-    # Assure data type is int, as it will be used for indexing
+    # 1. Drop tiles that don't have a valid bed pick (e.g. that have NaN) for the center_index
+    valid_indices = np.isfinite(y_center_indices_candidates)
+    n_invalid_bed = np.sum( ~ valid_indices)
+    if n_invalid_bed > 0:
+        print(f"INFO: Dropped {n_invalid_bed} / {n_candidates} tiles without a valid bed pick")
     x_center_indices = np.round(x_center_indices_candidates[valid_indices]).astype(int)
     y_center_indices = np.round(y_center_indices_candidates[valid_indices]).astype(int)
 
-    # 2. Check that vertical range fits within the radargram, and drop tiles that don't fit
-    in_vertical_range = (y_center_indices - HALF_TILE_HEIGHT >= 0) & \
-                (y_center_indices + HALF_TILE_HEIGHT <= n_rows)
-    # overwrite is okay here
-    x_center_indices = x_center_indices[in_vertical_range]
-    y_center_indices = y_center_indices[in_vertical_range]
+    # 2. Check that the tile does not extend beyond the top / bottom of the radargram
+    fits_vertically = (
+        (y_center_indices - HALF_TILE_HEIGHT >= 0) &
+        (y_center_indices + HALF_TILE_HEIGHT <= n_rows)
+    )
+    if ( ~ fits_vertically).any():
+        print(f"INFO: Dropped {( ~ fits_vertically).sum()} tiles that extend beyond the top / bottom of the radargram")
+    x_center_indices = x_center_indices[fits_vertically]
+    y_center_indices = y_center_indices[fits_vertically]
 
-    # 3. Calculate the indices of the tiles
-    x_min_index, x_max_index = x_center_indices - HALF_TILE_WIDTH, x_center_indices + HALF_TILE_WIDTH -1
-    y_min_index, y_max_index = y_center_indices - HALF_TILE_HEIGHT, y_center_indices + HALF_TILE_HEIGHT -1
+    # 3. Check that tile does not cover "air" but ice only, i.e. the bed pick is not too close to the top of the radargram
+    surface_elevations = radargram_ds_l2.l2_SURFACE_ELEVATION.values[x_center_indices]
+    top_row_elevations = elevations_m[y_center_indices - HALF_TILE_HEIGHT, x_center_indices]
+
+    # Drop tiles where the top row is too close to the surface
+    in_ice_only = top_row_elevations < surface_elevations
+    n_dropped = np.sum(~ in_ice_only)
+
+    if n_dropped > 0:
+        print(f"INFO: Dropped {n_dropped} tiles that were too close to the surface (air)")
+    # overwrite is okay here
+    x_center_indices = x_center_indices[in_ice_only]
+    y_center_indices = y_center_indices[in_ice_only]
+
+    # 4. Calculate the indices of the tiles
+    x_min_index, x_max_index = x_center_indices - HALF_TILE_WIDTH, x_center_indices + HALF_TILE_WIDTH
+    y_min_index, y_max_index = y_center_indices - HALF_TILE_HEIGHT, y_center_indices + HALF_TILE_HEIGHT
 
     if x_center_indices.size == 0:
         return None, None
 
     # 3D numpy array e.g. (9, 336, 336)
     tiles = np.stack([amplitude[y - HALF_TILE_HEIGHT:y + HALF_TILE_HEIGHT, x - HALF_TILE_WIDTH:x + HALF_TILE_WIDTH] for x, y in zip(x_center_indices, y_center_indices)]).astype(np.float32, copy = False)
+
+    window_for_peak_bed_echo = tiles[:, HALF_TILE_HEIGHT - PEAK_BED_ECHO_WINDOW_HALF_HEIGHT : HALF_TILE_HEIGHT + PEAK_BED_ECHO_WINDOW_HALF_HEIGHT + 1, HALF_TILE_WIDTH - PEAK_BED_ECHO_WINDOW_HALF_WIDTH  : HALF_TILE_WIDTH + PEAK_BED_ECHO_WINDOW_HALF_WIDTH  + 1]
 
     # metadata
     metadata = pd.DataFrame({
@@ -368,11 +396,15 @@ def crop_tiles_extract_metadata(radargram_ds_l2, elevations_m, bed_idx):
             "surface_elevation": radargram_ds_l2["l2_SURFACE_ELEVATION"].values[x_center_indices],
             "ice_thickness": radargram_ds_l2["l2_THK"].values[x_center_indices],
             "partial_bed_reflect": radargram_ds_l2["l2_PARTIAL_BED_REFLECT"].values[x_center_indices],
-            "srf_reflect": radargram_ds_l2["l2_SRF_REFLECT"].values[x_center_indices],
+            # NOTE: HiCARS1 might be missing this field, so we need to check if it exists first
+            "srf_reflect": (radargram_ds_l2["l2_SRF_REFLECT"].values[x_center_indices] if "l2_SRF_REFLECT" in radargram_ds_l2 else np.nan),
             "tile_along_track_span_m": np.hypot(radargram_ds_l2["l2_X"].values[x_max_index] - radargram_ds_l2["l2_X"].values[x_min_index], radargram_ds_l2["l2_Y"].values[x_max_index] - radargram_ds_l2["l2_Y"].values[x_min_index]),
             "tile_vertical_span_m": elevations_m[y_max_index, x_center_indices] - elevations_m[y_min_index, x_center_indices], 
             # need +1 because the range is inclusive of both ends
-            "bed_std_m": [np.nanstd(radargram_ds_l2["l2_BED_ELEVATION"].values[x_min : x_max + 1]) for x_min, x_max in zip(x_min_index, x_max_index)],})
+            "bed_std_m": [np.nanstd(radargram_ds_l2["l2_BED_ELEVATION"].values[x_min : x_max + 1]) for x_min, x_max in zip(x_min_index, x_max_index)],
+            "peak_bed_echo_db": np.nanmax(window_for_peak_bed_echo, axis = (1, 2)),})
+
+    del window_for_peak_bed_echo
 
     # print to mark end of processing for this granule
     print("------------------------------")
