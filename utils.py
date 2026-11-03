@@ -343,12 +343,13 @@ def crop_tiles_extract_metadata(radargram_ds_l2, elevations_m, bed_idx):
     y_center_indices = np.round(y_center_indices_candidates[valid_indices]).astype(int)
 
     # 2. Check that the tile does not extend beyond the top / bottom of the radargram
+    n_candidates = x_center_indices_candidates.size
     fits_vertically = (
         (y_center_indices - HALF_TILE_HEIGHT >= 0) &
         (y_center_indices + HALF_TILE_HEIGHT <= n_rows)
     )
     if ( ~ fits_vertically).any():
-        print(f"INFO: Dropped {( ~ fits_vertically).sum()} tiles that extend beyond the top / bottom of the radargram")
+        print(f"INFO: Dropped {( ~ fits_vertically).sum()} / {n_candidates} tiles that extend beyond the top / bottom of the radargram")
     x_center_indices = x_center_indices[fits_vertically]
     y_center_indices = y_center_indices[fits_vertically]
 
@@ -359,9 +360,10 @@ def crop_tiles_extract_metadata(radargram_ds_l2, elevations_m, bed_idx):
     # Drop tiles where the top row is too close to the surface
     in_ice_only = top_row_elevations < surface_elevations
     n_dropped = np.sum(~ in_ice_only)
+    n_candidates = x_center_indices.size
 
     if n_dropped > 0:
-        print(f"INFO: Dropped {n_dropped} tiles that were too close to the surface (air)")
+        print(f"INFO: Dropped {n_dropped} / {n_candidates} tiles that were too close to the surface (air)")
     # overwrite is okay here
     x_center_indices = x_center_indices[in_ice_only]
     y_center_indices = y_center_indices[in_ice_only]

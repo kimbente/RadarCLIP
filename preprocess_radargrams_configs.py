@@ -39,7 +39,9 @@ BED_REFLECTIVITY_REFERENCE = 50
 
 # see radargram_ds.attrs["TX-record_offset"] in each radragram file
 TX_OFFSET_EAGLE_HiCARS2_microseconds = 2.550
-TX_OFFSET_IceBridge_HiCARS1_microseconds = 50.00
+# TX_OFFSET_IceBridge_HiCARS1_microseconds = 50.00
+# 0.5 works, not 50; Would be 500 nanoseconds - just wrong
+TX_OFFSET_IceBridge_HiCARS1_microseconds = 0.50
 TX_OFFSET_IceBridge_HiCARS2_microseconds = 3.112
 
 # Visualization parameters

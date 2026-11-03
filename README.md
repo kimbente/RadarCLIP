@@ -2,10 +2,7 @@
 
 Contrastive learning for ice-penetrating radar (IPR) data.
 
-Other naming ideas: Contrastive Radar Image - Satellite Pretraining (CRISP)
-
-![IBIZ logo](assets/IBIZ_logo.png)
-
+![IBIZ tile](image.png)
 
 # Data
 
@@ -109,3 +106,7 @@ Calculate from radar tile:
 - Understand radardata in line km
 - Consider data quality issues
 - Check if skipped files exist and we just didn't download
+
+# Archive
+
+Other naming ideas: Contrastive Radar Image - Satellite Pretraining (CRISP)
