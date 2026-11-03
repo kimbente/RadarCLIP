@@ -2,7 +2,7 @@
 
 Contrastive learning for ice-penetrating radar (IPR) data.
 
-![IBIZ tile](image.png)
+![IBIZ tile](some_radargram.png)
 
 # Data
 
@@ -101,11 +101,14 @@ Calculate from radar tile:
 # ToDo
 - add additional values to meta data:
     - specularity
-    - roughness
+    - (roughness)
+    - distance to coast
 - Mask out "above bed" and "below bed" and for instance calculate metrics such as variability?!
 - Understand radardata in line km
 - Consider data quality issues
 - Check if skipped files exist and we just didn't download
+
+
 
 # Archive
 
