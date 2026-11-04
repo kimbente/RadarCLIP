@@ -22,3 +22,5 @@ path_to_tiles_tensor_IceBridge_HiCARS1 = "data/tiles_tensor_IceBridge_HiCARS1.pt
 
 path_to_tiles_metadata_IceBridge_HiCARS2 = "data/tiles_metadata_IceBridge_HiCARS2.csv"
 path_to_tiles_tensor_IceBridge_HiCARS2 = "data/tiles_tensor_IceBridge_HiCARS2.pt"
+
+path_to_modis_moa_750 = "/Users/kim.bente/DATA/MODIS/moa750_2014_hp1_v01.tif"
