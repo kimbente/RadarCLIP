@@ -24,3 +24,12 @@ path_to_tiles_metadata_IceBridge_HiCARS2 = "data/tiles_metadata_IceBridge_HiCARS
 path_to_tiles_tensor_IceBridge_HiCARS2 = "data/tiles_tensor_IceBridge_HiCARS2.pt"
 
 path_to_modis_moa_750 = "/Users/kim.bente/DATA/MODIS/moa750_2014_hp1_v01.tif"
+
+# combined
+path_to_tiles_metadata = "data/tiles_metadata.csv"
+path_to_tiles_metadata_enriched = "data/tiles_metadata_enriches.csv"
+path_to_tiles_tensor = "data/tiles_tensor.pt"
+
+# 
+path_to_phase_based_ice_vel = "/Users/kim.bente/DATA/ice_velocity/NSIDC-0484_2-20261004_220442/antarctica_ice_velocity_450m_v2.nc"
+path_to_beta_basal_friction = "/Users/kim.bente/DATA/basal_friction/beta_ismip6_cz.nc"

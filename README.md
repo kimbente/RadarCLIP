@@ -40,12 +40,17 @@ We use radargrams from EAGLE and ICECAP covering East Antarctica, combined with 
 # Encoders
 - DINO v2
 - RETFound
+Backbone: VIT-S ResNet50
 
 # Tasks with embeddings
 - subglacial water!
 - ice thickness prediction on hold-out data
 - basal friction prediction on hold-out data
 - of a certain radar phenomenon, try to find similar tiles
+https://zenodo.org/records/18508904
+https://data-search.nerc.ac.uk/geonetwork/srv/api/records/5f0ac285-cca3-4a0e-bcbc-d921734395ab (basal drag)
+https://www.usap-dc.org/view/dataset/609626
+
 
 # ToDo
 - combine three data sets
