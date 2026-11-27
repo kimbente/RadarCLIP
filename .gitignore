@@ -3,5 +3,5 @@ __pycache__/
 *.pyc
 .DS_Store
 *.pt
-embeddings/
-embeddings/dinov2_embeddings_EAGLE_2016.pt
+embeddings/*
+
