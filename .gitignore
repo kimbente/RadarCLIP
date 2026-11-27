@@ -5,3 +5,4 @@ __pycache__/
 *.pt
 embeddings/*
 
+embeddings/dinov2_embeddings_EAGLE_2016.pt
