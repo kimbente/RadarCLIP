@@ -310,6 +310,47 @@ def generate_bed_idx_and_mask(elevations_m, radargram_ds_l2):
 
     return bed_idx, bed_mask
 
+def generate_bed_and_elevation_idx_and_mask(elevations_m, radargram_ds_l2):
+    """
+    Generate a bed mask based on the elevations and L2 bed elevation data.
+    
+    Parameters:
+    elevations_m (numpy.ndarray): The 2D array of elevations in meters.
+    radargram_ds_l2 (xarray.Dataset): The radargram dataset with L2 data merged.
+    
+    Returns:
+    numpy.ndarray: A boolean mask indicating where the bed is present.
+    """
+    # Retrieve interpreted bed elevation values (in meters above sea level)
+    # shape (4000,)
+    # NOTE: some of the bed elevation values are NaN, so we need to handle that
+    bed_elevation = radargram_ds_l2.l2_BED_ELEVATION.values
+    surface_elevation = radargram_ds_l2.l2_SURFACE_ELEVATION.values
+
+    # For each column, find the row index where elevation_m is closest to bed_elevation
+    # NOTE: we need floats to allow for NaN values, so we cast to float
+    bed_idx = np.argmin(np.abs(elevations_m - bed_elevation[np.newaxis, :]), axis = 0).astype(float)
+    surface_idx = np.argmin(np.abs(elevations_m - surface_elevation[np.newaxis, :]), axis = 0).astype(float)
+
+    # Propagate NaN where bed_elevation itself was NaN
+    bed_idx[np.isnan(bed_elevation)] = np.nan
+    surface_idx[np.isnan(surface_elevation)] = np.nan
+
+    ### MASK ###
+    x_axis_index = np.arange(elevations_m.shape[1])
+    # container
+    bed_mask = np.zeros_like(elevations_m, dtype = bool)
+    # Set only the row index where the bed is located to True, for each column
+    # some nan values are shown as 0
+    valid = np.isfinite(bed_idx)
+    bed_mask[bed_idx[valid].astype(int), x_axis_index[valid]] = True
+
+    surface_mask = np.zeros_like(elevations_m, dtype = bool)
+    valid_el = np.isfinite(surface_idx)
+    surface_mask[surface_idx[valid_el].astype(int), x_axis_index[valid_el]] = True
+
+    return bed_idx, bed_mask, surface_idx, surface_mask
+
 
 ##################
 ### CROP TILES ###
@@ -320,9 +361,27 @@ def generate_bed_idx_and_mask(elevations_m, radargram_ds_l2):
 HALF_TILE_WIDTH = IMAGE_TILE_WIDTH // 2
 HALF_TILE_HEIGHT = IMAGE_TILE_HEIGHT // 2
 
-def crop_tiles_extract_metadata(radargram_ds_l2, elevations_m, bed_idx):
+def crop_tiles_extract_metadata(radargram_ds_l2, elevations_m, bed_idx, apply_geometric_correction = False, EPSILON = 3.2):
     # Extract and transpose high gain amplitude 2D array 
     amplitude = radargram_ds_l2["amplitude_high_gain"].values.T
+
+    if apply_geometric_correction:
+        # relative permittivity from Matsuoka et al. 2010
+        # EPSILON = 3.2
+
+        # make surface elevation a row vector and broadcast subtract from elevation
+        # NOTE: depths are positive
+        # applies to ice mask, calculate correction for every cell
+        depth_rel_to_surface = - (elevations_m - radargram_ds_l2.l2_SURFACE_ELEVATION.values[None, :])
+    
+        depth_dependent_term = depth_rel_to_surface / np.sqrt(EPSILON)
+
+        geometric = 2 * (radargram_ds_l2.l2_SRF_RNG.values[None, :] + depth_dependent_term)
+        # convert to dB
+        geometric_dB = 20 * np.log10(geometric)
+        # subtract
+        amplitude = amplitude - geometric_dB
+
     # Extract shape
     n_rows, n_cols = amplitude.shape
 
